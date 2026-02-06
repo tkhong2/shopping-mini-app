@@ -1,0 +1,22 @@
+[
+  {"id": "cat_1", "name": "Điện thoại - Máy tính bảng", "icon": "📱", "productCount": 150},
+  {"id": "cat_2", "name": "Laptop - Máy vi tính", "icon": "💻", "productCount": 120},
+  {"id": "cat_3", "name": "Thiết bị âm thanh", "icon": "🎧", "productCount": 80},
+  {"id": "cat_4", "name": "Nhà cửa - Đời sống", "icon": "🏠", "productCount": 200},
+  {"id": "cat_5", "name": "Đồ chơi - Mẹ & Bé", "icon": "🧸", "productCount": 180},
+  {"id": "cat_6", "name": "Làm đẹp - Sức khỏe", "icon": "💄", "productCount": 160},
+  {"id": "cat_7", "name": "Thời trang nam", "icon": "👕", "productCount": 250},
+  {"id": "cat_8", "name": "Thời trang nữ", "icon": "👗", "productCount": 300},
+  {"id": "cat_9", "name": "Giày dép nam", "icon": "👟", "productCount": 140},
+  {"id": "cat_10", "name": "Giày dép nữ", "icon": "👠", "productCount": 170},
+  {"id": "cat_11", "name": "Túi ví nam", "icon": "💼", "productCount": 90},
+  {"id": "cat_12", "name": "Túi ví nữ", "icon": "👜", "productCount": 130},
+  {"id": "cat_13", "name": "Balo và Vali", "icon": "🧳", "productCount": 100},
+  {"id": "cat_14", "name": "Phụ kiện thời trang", "icon": "👓", "productCount": 110},
+  {"id": "cat_15", "name": "Đồng hồ", "icon": "⌚", "productCount": 95},
+  {"id": "cat_16", "name": "Nhà sách GoMall", "icon": "📚", "productCount": 220},
+  {"id": "cat_17", "name": "Thể thao - Dã ngoại", "icon": "⚽", "productCount": 85},
+  {"id": "cat_18", "name": "Ô tô - Xe máy", "icon": "🚗", "productCount": 75},
+  {"id": "cat_19", "name": "Điện gia dụng", "icon": "🔌", "productCount": 130},
+  {"id": "cat_20", "name": "NGON - Thực phẩm", "icon": "🍜", "productCount": 190}
+]
