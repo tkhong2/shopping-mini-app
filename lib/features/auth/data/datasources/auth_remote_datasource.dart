@@ -75,9 +75,18 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         throw const AuthException('Không tìm thấy thông tin người dùng');
       }
 
+      final userData = userDoc.data()!;
+      
+      // Check if user is blocked
+      final isBlocked = userData['isBlocked'] as bool?;
+      if (isBlocked == true) {
+        await firebaseAuth.signOut();
+        throw const AuthException('Tài khoản của bạn đã bị khóa');
+      }
+
       return UserModel.fromJson({
         'id': credential.user!.uid,
-        ...userDoc.data()!,
+        ...userData,
       });
     } on FirebaseAuthException catch (e) {
       throw AuthException(_getAuthErrorMessage(e.code));
@@ -116,6 +125,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         'updatedAt': DateTime.now().toIso8601String(),
         'addresses': <String>[],
         'isEmailVerified': credential.user!.emailVerified,
+        'isBlocked': false,
       };
 
       await firestore
@@ -299,7 +309,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       case 'invalid-email':
         return 'Email không hợp lệ';
       case 'user-disabled':
-        return 'Tài khoản đã bị vô hiệu hóa';
+        return 'Tài khoản của bạn đã bị khóa';
       case 'too-many-requests':
         return 'Quá nhiều yêu cầu. Vui lòng thử lại sau';
       case 'operation-not-allowed':

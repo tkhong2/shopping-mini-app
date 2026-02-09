@@ -68,4 +68,14 @@ class MockProducts {
       return name.contains(lowerQuery) || description.contains(lowerQuery);
     }).toList();
   }
+
+  // Get all products for admin
+  static List<Map<String, dynamic>> getAllProducts() {
+    return List<Map<String, dynamic>>.from(products);
+  }
+
+  // Get all categories for admin
+  static List<Map<String, dynamic>> getAllCategories() {
+    return List<Map<String, dynamic>>.from(categories);
+  }
 }

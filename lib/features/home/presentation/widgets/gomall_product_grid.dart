@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/data/mock_products.dart';
+import '../../../product/data/services/firebase_product_service.dart';
 
-class GoMallProductGrid extends StatelessWidget {
+class GoMallProductGrid extends StatefulWidget {
   const GoMallProductGrid({super.key});
+
+  @override
+  State<GoMallProductGrid> createState() => _GoMallProductGridState();
+}
+
+class _GoMallProductGridState extends State<GoMallProductGrid> {
+  final _productService = FirebaseProductService();
 
   @override
   Widget build(BuildContext context) {
@@ -60,19 +67,53 @@ class GoMallProductGrid extends StatelessWidget {
           ),
           
           // Product Grid
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.68,
-            ),
-            itemCount: 6,
-            itemBuilder: (context, index) {
-              return _buildProductItem(context, index);
+          StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _productService.getTopDeals(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Center(
+                    child: Text('Lỗi: ${snapshot.error}'),
+                  ),
+                );
+              }
+
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(
+                    child: Text('Chưa có sản phẩm'),
+                  ),
+                );
+              }
+
+              final products = snapshot.data!;
+              print('Top Deals products count: ${products.length}');
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.68,
+                ),
+                itemCount: products.length > 6 ? 6 : products.length,
+                itemBuilder: (context, index) {
+                  return _buildProductItem(context, products[index]);
+                },
+              );
             },
           ),
           
@@ -82,11 +123,14 @@ class GoMallProductGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildProductItem(BuildContext context, int index) {
-    final products = MockProducts.getTopDeals();
-    final product = products[index % products.length];
-    
-    final discount = ((1 - (product['price'] as double) / (product['originalPrice'] as double)) * 100).toInt();
+  Widget _buildProductItem(BuildContext context, Map<String, dynamic> product) {
+    final price = (product['price'] as num?)?.toDouble() ?? 0.0;
+    final originalPrice = (product['originalPrice'] as num?)?.toDouble() ?? 0.0;
+    final discount = originalPrice > 0 ? ((1 - price / originalPrice) * 100).toInt() : 0;
+    final images = product['images'] as List<dynamic>? ?? [];
+    final imageUrl = images.isNotEmpty ? images.first as String : '';
+    final rating = (product['rating'] as num?)?.toDouble() ?? 0.0;
+    final soldCount = product['soldCount'] as int? ?? 0;
 
     return GestureDetector(
       onTap: () {
@@ -113,41 +157,51 @@ class GoMallProductGrid extends StatelessWidget {
                 Positioned.fill(
                   child: ClipRRect(
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                    child: Image.network(
-                      (product['images'] as List<dynamic>).first as String,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey.shade200,
-                          child: Icon(
-                            Icons.image,
-                            size: 40,
-                            color: Colors.grey.shade600,
+                    child: imageUrl.isNotEmpty
+                        ? Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey.shade200,
+                                child: Icon(
+                                  Icons.image,
+                                  size: 40,
+                                  color: Colors.grey.shade600,
+                                ),
+                              );
+                            },
+                          )
+                        : Container(
+                            color: Colors.grey.shade200,
+                            child: Icon(
+                              Icons.image,
+                              size: 40,
+                              color: Colors.grey.shade600,
+                            ),
                           ),
-                        );
-                      },
-                    ),
                   ),
                 ),
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '-$discount%',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                if (discount > 0)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '-$discount%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                ),
                 // Badges
                 Positioned(
                   bottom: 8,
@@ -200,7 +254,7 @@ class GoMallProductGrid extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  product['name'] as String,
+                  product['name'] as String? ?? '',
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -215,13 +269,13 @@ class GoMallProductGrid extends StatelessWidget {
                     const Icon(Icons.star, color: Colors.orange, size: 12),
                     const SizedBox(width: 2),
                     Text(
-                      '${product['rating']}',
+                      rating.toStringAsFixed(1),
                       style: const TextStyle(fontSize: 11, color: Colors.grey),
                     ),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        'Đã bán ${_formatSoldCount(product['soldCount'] as int)}',
+                        'Đã bán ${_formatSoldCount(soldCount)}',
                         style: const TextStyle(fontSize: 11, color: Colors.grey),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -230,21 +284,22 @@ class GoMallProductGrid extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _formatPrice(product['price'] as double),
+                  _formatPrice(price),
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                     color: Colors.red,
                   ),
                 ),
-                Text(
-                  _formatPrice(product['originalPrice'] as double),
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey,
-                    decoration: TextDecoration.lineThrough,
+                if (originalPrice > price)
+                  Text(
+                    _formatPrice(originalPrice),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey,
+                      decoration: TextDecoration.lineThrough,
+                    ),
                   ),
-                ),
                 const SizedBox(height: 2),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),

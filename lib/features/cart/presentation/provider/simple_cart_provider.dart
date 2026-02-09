@@ -2,6 +2,15 @@ import 'package:flutter/foundation.dart';
 import '../../domain/entities/cart_item_entity.dart';
 
 class SimpleCartProvider extends ChangeNotifier {
+  // Singleton pattern to ensure same instance across app
+  static final SimpleCartProvider _instance = SimpleCartProvider._internal();
+  
+  factory SimpleCartProvider() {
+    return _instance;
+  }
+  
+  SimpleCartProvider._internal();
+  
   final List<CartItemEntity> _items = [];
   
   List<CartItemEntity> get items => _items;
@@ -29,17 +38,19 @@ class SimpleCartProvider extends ChangeNotifier {
     );
 
     if (existingIndex >= 0) {
-      // Update quantity
+      // Update quantity and select the item
       final existingItem = _items[existingIndex];
       final newQuantity = (existingItem.quantity + item.quantity)
           .clamp(1, existingItem.maxQuantity);
       _items[existingIndex] = existingItem.copyWith(
         quantity: newQuantity,
+        isSelected: true, // Auto-select when adding to cart
         updatedAt: DateTime.now(),
       );
     } else {
-      // Add new item
-      _items.add(item);
+      // Add new item with isSelected = true
+      final newItem = item.copyWith(isSelected: true);
+      _items.add(newItem);
     }
     
     notifyListeners();

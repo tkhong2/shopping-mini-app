@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/data/mock_products.dart';
+import '../../../category/data/services/firebase_category_service.dart';
 import 'category_products_page.dart';
 
 class SimpleCategoryPage extends StatefulWidget {
@@ -11,24 +11,9 @@ class SimpleCategoryPage extends StatefulWidget {
 }
 
 class _SimpleCategoryPageState extends State<SimpleCategoryPage> {
-  List<Map<String, dynamic>> _categories = [];
+  final _categoryService = FirebaseCategoryService();
   String _selectedCategoryId = '';
   final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCategories();
-  }
-
-  void _loadCategories() {
-    setState(() {
-      _categories = MockProducts.categories;
-      if (_categories.isNotEmpty) {
-        _selectedCategoryId = _categories.first['id'] as String;
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,49 +52,85 @@ class _SimpleCategoryPageState extends State<SimpleCategoryPage> {
           ),
         ],
       ),
-      body: Row(
-        children: [
-          // Left sidebar
-          Container(
-            width: 90,
-            color: Colors.white,
-            child: ListView.builder(
-              padding: EdgeInsets.zero,
-              itemCount: _categories.length,
-              itemBuilder: (context, index) {
-                final category = _categories[index];
-                final isActive = category['id'] == _selectedCategoryId;
-                return _buildSidebarItem(
-                  category['name'] as String,
-                  category['icon'] as String,
-                  isActive,
-                  () {
-                    setState(() {
-                      _selectedCategoryId = category['id'] as String;
-                    });
-                  },
-                );
-              },
-            ),
-          ),
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: _categoryService.getCategories(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text('Lỗi: ${snapshot.error}'));
+          }
+
+          final categories = snapshot.data ?? [];
           
-          // Right content
-          Expanded(
-            child: Container(
-              color: Colors.white,
-              child: _buildCategoryContent(),
-            ),
-          ),
-        ],
+          if (categories.isEmpty) {
+            return const Center(child: Text('Chưa có danh mục'));
+          }
+
+          // Set initial selected category
+          if (_selectedCategoryId.isEmpty && categories.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                setState(() {
+                  _selectedCategoryId = categories.first['id'] as String? ?? '';
+                });
+              }
+            });
+          }
+
+          return Row(
+            children: [
+              // Left sidebar
+              Container(
+                width: 90,
+                color: Colors.white,
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemCount: categories.length,
+                  itemBuilder: (context, index) {
+                    final category = categories[index];
+                    final categoryId = category['id'] as String? ?? '';
+                    final categoryIcon = category['icon'] as String? ?? '📦';
+                    final isActive = categoryId == _selectedCategoryId;
+                    return _buildSidebarItem(
+                      category['name'] as String? ?? '',
+                      categoryIcon,
+                      isActive,
+                      () {
+                        setState(() {
+                          _selectedCategoryId = categoryId;
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              
+              // Right content
+              Expanded(
+                child: Container(
+                  color: Colors.white,
+                  child: _buildCategoryContent(categories),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildCategoryContent() {
-    final selectedCategory = _categories.firstWhere(
-      (c) => c['id'] == _selectedCategoryId,
-      orElse: () => _categories.first,
+  Widget _buildCategoryContent(List<Map<String, dynamic>> categories) {
+    final selectedCategory = categories.firstWhere(
+      (c) => (c['id'] as String?) == _selectedCategoryId,
+      orElse: () => categories.isNotEmpty ? categories.first : {},
     );
+
+    if (selectedCategory.isEmpty) {
+      return const Center(child: Text('Không tìm thấy danh mục'));
+    }
 
     return ListView(
       padding: const EdgeInsets.all(12),
@@ -118,7 +139,7 @@ class _SimpleCategoryPageState extends State<SimpleCategoryPage> {
         Row(
           children: [
             Text(
-              selectedCategory['icon'] as String,
+              selectedCategory['icon'] as String? ?? '📦',
               style: const TextStyle(fontSize: 24),
             ),
             const SizedBox(width: 8),
@@ -127,14 +148,14 @@ class _SimpleCategoryPageState extends State<SimpleCategoryPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    selectedCategory['name'] as String,
+                    selectedCategory['name'] as String? ?? '',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   Text(
-                    '${selectedCategory['productCount']} sản phẩm',
+                    '${selectedCategory['productCount'] ?? 0} sản phẩm',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey.shade600,
@@ -148,8 +169,8 @@ class _SimpleCategoryPageState extends State<SimpleCategoryPage> {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) => CategoryProductsPage(
-                      categoryId: selectedCategory['id'] as String,
-                      categoryName: selectedCategory['name'] as String,
+                      categoryId: selectedCategory['id'] as String? ?? '',
+                      categoryName: selectedCategory['name'] as String? ?? '',
                     ),
                   ),
                 );
@@ -184,13 +205,13 @@ class _SimpleCategoryPageState extends State<SimpleCategoryPage> {
             crossAxisSpacing: 12,
             childAspectRatio: 0.85,
           ),
-          itemCount: _categories.length,
+          itemCount: categories.length,
           itemBuilder: (context, index) {
-            final category = _categories[index];
+            final category = categories[index];
             return _buildCategoryCard(
-              category['name'] as String,
-              category['icon'] as String,
-              category['id'] as String,
+              category['name'] as String? ?? '',
+              category['icon'] as String? ?? '📦',
+              category['id'] as String? ?? '',
             );
           },
         ),

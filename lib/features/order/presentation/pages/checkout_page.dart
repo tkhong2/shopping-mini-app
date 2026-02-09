@@ -7,6 +7,8 @@ import '../../../../core/utils/formatters.dart';
 import '../../../../shared/widgets/custom_button.dart';
 import '../../../cart/presentation/provider/simple_cart_provider.dart';
 import '../../../notifications/presentation/provider/notification_provider.dart';
+import '../../../profile/presentation/provider/address_provider.dart';
+import '../../data/services/firebase_order_service.dart';
 import '../provider/order_provider.dart';
 import '../widgets/checkout_address_section.dart';
 import '../widgets/checkout_payment_section.dart';
@@ -21,6 +23,7 @@ class CheckoutPage extends StatefulWidget {
 }
 
 class _CheckoutPageState extends State<CheckoutPage> {
+  final _orderService = FirebaseOrderService();
   String _selectedAddress = 'default';
   String _selectedPayment = 'cod';
   String _deliveryNote = '';
@@ -223,31 +226,68 @@ class _CheckoutPageState extends State<CheckoutPage> {
     });
 
     try {
-      // Simulate order processing
-      await Future.delayed(const Duration(seconds: 2));
-
-      final orderId = 'ORD${DateTime.now().millisecondsSinceEpoch}';
+      // Get default address
+      final addressProvider = context.read<AddressProvider>();
+      final defaultAddress = addressProvider.defaultAddress;
+      
+      if (defaultAddress == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Vui lòng thêm địa chỉ giao hàng'),
+              backgroundColor: AppColors.error,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
+      
       final deliveryFee = _calculateDeliveryFee(cartProvider.totalPrice);
       final totalAmount = cartProvider.totalPrice + deliveryFee;
       
-      // Create order items
+      // Format full address
+      final fullAddress = '${defaultAddress.name} - ${defaultAddress.phone}\n${defaultAddress.address}';
+      
+      // Prepare order items for Firebase
       final orderItems = cartProvider.selectedItems.map((item) {
-        return OrderItemDetail(
-          id: item.id,
-          name: item.productName,
-          imageUrl: item.productImage,
-          quantity: item.quantity,
-          price: item.price,
-        );
+        return {
+          'productId': item.productId,
+          'productName': item.productName,
+          'productImage': item.productImage,
+          'quantity': item.quantity,
+          'price': item.price,
+          'originalPrice': item.originalPrice,
+        };
       }).toList();
       
-      // Add order to provider
+      // Create order in Firebase
+      final orderId = await _orderService.createOrder(
+        totalAmount: totalAmount,
+        items: orderItems,
+        address: fullAddress,
+        paymentMethod: _selectedPayment == 'cod' ? 'Thanh toán khi nhận hàng' : 'Chuyển khoản',
+        deliveryNote: _deliveryNote,
+        deliveryFee: deliveryFee,
+      );
+      
+      // Also add to local OrderProvider for immediate UI update
       if (mounted) {
+        final orderItemDetails = cartProvider.selectedItems.map((item) {
+          return OrderItemDetail(
+            id: item.id,
+            name: item.productName,
+            imageUrl: item.productImage,
+            quantity: item.quantity,
+            price: item.price,
+          );
+        }).toList();
+        
         context.read<OrderProvider>().addOrder(
           id: orderId,
           totalAmount: totalAmount,
-          items: orderItems,
-          address: '123 Đường ABC, Phường XYZ, Quận 1, TP.HCM',
+          items: orderItemDetails,
+          address: fullAddress,
           paymentMethod: _selectedPayment == 'cod' ? 'Thanh toán khi nhận hàng' : 'Chuyển khoản',
         );
         
@@ -332,7 +372,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           SnackBar(
             content: Text('Lỗi đặt hàng: ${e.toString()}'),
             backgroundColor: AppColors.error,
-            duration: const Duration(seconds: 2),
+            duration: const Duration(seconds: 3),
           ),
         );
       }

@@ -31,6 +31,17 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   }
 
   @override
+  void dispose() {
+    // Clear any snackbars when leaving the page
+    try {
+      ScaffoldMessenger.of(context).clearSnackBars();
+    } catch (e) {
+      // Ignore if context is not available
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -532,24 +543,61 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
     context.read<SimpleCartProvider>().addToCart(cartItem);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Đã thêm $_quantity sản phẩm vào giỏ hàng'),
-        backgroundColor: Colors.green,
-        action: SnackBarAction(
-          label: 'Xem giỏ hàng',
-          textColor: Colors.white,
-          onPressed: () => context.push('/cart'),
+    // Use ScaffoldMessenger with simpler config
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text('Đã thêm $_quantity sản phẩm vào giỏ hàng'),
+              ),
+              TextButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  context.push('/cart');
+                },
+                child: const Text(
+                  'XEM',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
         ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      );
   }
 
   void _buyNow(BuildContext context, dynamic product) {
-    _addToCart(context, product);
-    Future.delayed(const Duration(milliseconds: 500), () {
-      context.push('/cart');
+    // Add to cart silently and navigate to checkout
+    final cartItem = CartItemEntity(
+      id: '${product.id}_${DateTime.now().millisecondsSinceEpoch}',
+      productId: product.id,
+      productName: product.name,
+      productImage: 'https://picsum.photos/seed/product1/200/200',
+      price: product.price,
+      originalPrice: product.originalPrice,
+      quantity: _quantity,
+      selectedVariantId: null,
+      selectedVariants: {},
+      maxQuantity: product.stock,
+      addedAt: DateTime.now(),
+    );
+
+    context.read<SimpleCartProvider>().addToCart(cartItem);
+    
+    // Navigate directly to checkout without showing snackbar
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        context.push('/checkout');
+      }
     });
   }
 }

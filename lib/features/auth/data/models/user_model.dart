@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../domain/entities/user_entity.dart';
 
 class UserModel extends UserEntity {
@@ -14,15 +15,26 @@ class UserModel extends UserEntity {
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    // Helper to parse DateTime from either Timestamp or String
+    DateTime parseDateTime(dynamic value) {
+      if (value is Timestamp) {
+        return value.toDate();
+      } else if (value is String) {
+        return DateTime.parse(value);
+      } else {
+        return DateTime.now();
+      }
+    }
+
     return UserModel(
       id: json['id'] as String,
       email: json['email'] as String,
       displayName: json['displayName'] as String,
       phoneNumber: json['phoneNumber'] as String?,
       photoURL: json['photoURL'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      createdAt: parseDateTime(json['createdAt']),
       updatedAt: json['updatedAt'] != null 
-          ? DateTime.parse(json['updatedAt'] as String)
+          ? parseDateTime(json['updatedAt'])
           : null,
       addresses: (json['addresses'] as List<dynamic>?)
           ?.map((e) => e as String)

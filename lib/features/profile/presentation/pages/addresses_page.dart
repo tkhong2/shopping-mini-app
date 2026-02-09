@@ -18,11 +18,14 @@ class _AddressesPageState extends State<AddressesPage> {
   void initState() {
     super.initState();
     
-    // Ensure addresses are loaded
+    // Ensure addresses are loaded and cleaned up
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final addressProvider = context.read<AddressProvider>();
       if (!addressProvider.isLoaded) {
         addressProvider.loadAddresses();
+      } else {
+        // Run cleanup to fix any duplicate issues
+        addressProvider.cleanupAddresses();
       }
     });
   }

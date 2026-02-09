@@ -52,8 +52,14 @@ class _SplashPageState extends State<SplashPage>
     await Future.delayed(const Duration(milliseconds: 2500));
     
     if (mounted) {
-      // Always go to home first (no login required)
-      context.go('/home');
+      // Check if user is logged in and is admin
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && user.email == 'admin@gomall.com') {
+        context.go('/admin');
+      } else {
+        // Always go to home for regular users
+        context.go('/home');
+      }
     }
   }
 
@@ -112,14 +118,14 @@ class _SplashPageState extends State<SplashPage>
                     ),
                     const SizedBox(height: 8),
                     // Tagline
-                    Text(
-                      'Mua sắm thông minh hơn',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                        letterSpacing: 0.5,
-                      ),
-                    ),
+                    // Text(
+                    //   'Mua sắm thông minh hơn',
+                    //   style: TextStyle(
+                    //     fontSize: 16,
+                    //     color: Colors.grey[600],
+                    //     letterSpacing: 0.5,
+                    //   ),
+                    // ),
                   ],
                 ),
               ),

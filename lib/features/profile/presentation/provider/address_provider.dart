@@ -91,11 +91,50 @@ class AddressProvider extends ChangeNotifier {
         _addresses.addAll(
           addressesList.map((addrJson) => AddressItem.fromJson(addrJson as Map<String, dynamic>)),
         );
-        debugPrint('Loaded ${_addresses.length} addresses');
+        
+        // Remove duplicates based on id first, then by content
+        final seenIds = <String>{};
+        final seenContent = <String>{};
+        _addresses.removeWhere((addr) {
+          // Check duplicate by ID
+          if (seenIds.contains(addr.id)) {
+            debugPrint('Removing duplicate address with ID: ${addr.id}');
+            return true;
+          }
+          
+          // Check duplicate by content
+          final contentKey = '${addr.name}_${addr.phone}_${addr.address}';
+          if (seenContent.contains(contentKey)) {
+            debugPrint('Removing duplicate address with same content: $contentKey');
+            return true;
+          }
+          
+          seenIds.add(addr.id);
+          seenContent.add(contentKey);
+          return false;
+        });
+        
+        // Ensure only one default address
+        final defaultAddresses = _addresses.where((addr) => addr.isDefault).toList();
+        if (defaultAddresses.length > 1) {
+          debugPrint('Found ${defaultAddresses.length} default addresses, fixing...');
+          // Keep only the first default, set others to false
+          for (int i = 1; i < defaultAddresses.length; i++) {
+            defaultAddresses[i].isDefault = false;
+          }
+          await _saveAddresses();
+        } else if (defaultAddresses.isEmpty && _addresses.isNotEmpty) {
+          // If no default, set first as default
+          debugPrint('No default address found, setting first as default');
+          _addresses.first.isDefault = true;
+          await _saveAddresses();
+        }
+        
+        debugPrint('Loaded ${_addresses.length} addresses after cleanup');
       } else {
-        // Add default addresses if none exist
-        debugPrint('No addresses found, creating defaults');
-        _addresses.addAll([
+        // Add default address if none exist
+        debugPrint('No addresses found, creating default');
+        _addresses.add(
           AddressItem(
             id: '1',
             name: 'Nguyễn Văn A',
@@ -103,14 +142,7 @@ class AddressProvider extends ChangeNotifier {
             address: '123 Đường ABC, Phường XYZ, Quận 1, TP.HCM',
             isDefault: true,
           ),
-          AddressItem(
-            id: '2',
-            name: 'Nguyễn Văn A',
-            phone: '0123456789',
-            address: '456 Đường DEF, Phường UVW, Quận 2, TP.HCM',
-            isDefault: false,
-          ),
-        ]);
+        );
         await _saveAddresses();
       }
 
@@ -141,6 +173,18 @@ class AddressProvider extends ChangeNotifier {
     required String address,
     bool isDefault = false,
   }) async {
+    // Check for duplicate content
+    final contentKey = '${name}_${phone}_$address';
+    final isDuplicate = _addresses.any((addr) {
+      final existingKey = '${addr.name}_${addr.phone}_${addr.address}';
+      return existingKey == contentKey;
+    });
+    
+    if (isDuplicate) {
+      debugPrint('Address already exists, skipping add');
+      return;
+    }
+    
     final newAddress = AddressItem(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
@@ -154,6 +198,9 @@ class AddressProvider extends ChangeNotifier {
       for (var addr in _addresses) {
         addr.isDefault = false;
       }
+    } else if (_addresses.isEmpty) {
+      // If this is the first address, make it default
+      newAddress.isDefault = true;
     }
 
     _addresses.add(newAddress);
@@ -217,5 +264,46 @@ class AddressProvider extends ChangeNotifier {
     _addresses.clear();
     await _saveAddresses();
     notifyListeners();
+  }
+  
+  // Force cleanup duplicates and fix default addresses
+  Future<void> cleanupAddresses() async {
+    debugPrint('Running cleanup on ${_addresses.length} addresses');
+    
+    // Remove duplicates by ID
+    final seenIds = <String>{};
+    final seenContent = <String>{};
+    _addresses.removeWhere((addr) {
+      if (seenIds.contains(addr.id)) {
+        debugPrint('Cleanup: Removing duplicate ID ${addr.id}');
+        return true;
+      }
+      
+      final contentKey = '${addr.name}_${addr.phone}_${addr.address}';
+      if (seenContent.contains(contentKey)) {
+        debugPrint('Cleanup: Removing duplicate content');
+        return true;
+      }
+      
+      seenIds.add(addr.id);
+      seenContent.add(contentKey);
+      return false;
+    });
+    
+    // Fix default addresses
+    final defaultAddresses = _addresses.where((addr) => addr.isDefault).toList();
+    if (defaultAddresses.length > 1) {
+      debugPrint('Cleanup: Found ${defaultAddresses.length} defaults, keeping only first');
+      for (int i = 1; i < defaultAddresses.length; i++) {
+        defaultAddresses[i].isDefault = false;
+      }
+    } else if (defaultAddresses.isEmpty && _addresses.isNotEmpty) {
+      debugPrint('Cleanup: No default found, setting first as default');
+      _addresses.first.isDefault = true;
+    }
+    
+    await _saveAddresses();
+    notifyListeners();
+    debugPrint('Cleanup complete: ${_addresses.length} addresses remaining');
   }
 }

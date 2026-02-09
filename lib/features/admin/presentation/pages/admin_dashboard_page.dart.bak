@@ -1,0 +1,759 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../data/services/admin_product_service.dart';
+import '../../data/services/admin_category_service.dart';
+import '../../data/services/admin_order_service.dart';
+import '../../data/services/admin_user_service.dart';
+
+class AdminDashboardPage extends StatefulWidget {
+  const AdminDashboardPage({super.key});
+
+  @override
+  State<AdminDashboardPage> createState() => _AdminDashboardPageState();
+}
+
+class _AdminDashboardPageState extends State<AdminDashboardPage> {
+  final _productService = AdminProductService();
+  final _categoryService = AdminCategoryService();
+  final _orderService = AdminOrderService();
+  final _userService = AdminUserService();
+
+  int _productCount = 0;
+  int _categoryCount = 0;
+  int _orderCount = 0;
+  int _userCount = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Load statistics after a short delay to ensure Firebase is ready
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        _loadStatistics();
+      }
+    });
+  }
+
+  Future<void> _loadStatistics() async {
+    try {
+      if (!mounted) return;
+      setState(() => _isLoading = true);
+      
+      // Load counts from Firebase with error handling
+      await Future.wait([
+        _loadProductCount(),
+        _loadCategoryCount(),
+        _loadOrderCount(),
+        _loadUserCount(),
+      ]);
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    } catch (e, stackTrace) {
+      print('Error in _loadStatistics: $e');
+      print('Stack trace: $stackTrace');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _loadProductCount() async {
+    try {
+      final products = await _productService.getProducts().first.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => <Map<String, dynamic>>[],
+      );
+      if (mounted) {
+        setState(() => _productCount = products.length);
+      }
+    } catch (e, stackTrace) {
+      print('Error loading products: $e');
+      print('Stack trace: $stackTrace');
+      if (mounted) {
+        setState(() => _productCount = 0);
+      }
+    }
+  }
+
+  Future<void> _loadCategoryCount() async {
+    try {
+      final categories = await _categoryService.getCategories().first.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => <Map<String, dynamic>>[],
+      );
+      if (mounted) {
+        setState(() => _categoryCount = categories.length);
+      }
+    } catch (e, stackTrace) {
+      print('Error loading categories: $e');
+      print('Stack trace: $stackTrace');
+      if (mounted) {
+        setState(() => _categoryCount = 0);
+      }
+    }
+  }
+
+  Future<void> _loadOrderCount() async {
+    try {
+      final orders = await _orderService.getOrders().first.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => <Map<String, dynamic>>[],
+      );
+      if (mounted) {
+        setState(() => _orderCount = orders.length);
+      }
+    } catch (e, stackTrace) {
+      print('Error loading orders: $e');
+      print('Stack trace: $stackTrace');
+      if (mounted) {
+        setState(() => _orderCount = 0);
+      }
+    }
+  }
+
+  Future<void> _loadUserCount() async {
+    try {
+      final users = await _userService.getUsers().first.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => <Map<String, dynamic>>[],
+      );
+      if (mounted) {
+        setState(() => _userCount = users.length);
+      }
+    } catch (e, stackTrace) {
+      print('Error loading users: $e');
+      print('Stack trace: $stackTrace');
+      if (mounted) {
+        setState(() => _userCount = 0);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Import sản phẩm từ JSON'),
+        content: const Text(
+          'Chức năng này sẽ import tất cả sản phẩm từ assets/data/products.json '
+          'vào Firebase và tự động map categoryId sang Firebase document ID.\n\n'
+          'Sản phẩm đã tồn tại sẽ được cập nhật.\n\n'
+          'Bạn có chắc muốn tiếp tục?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.green),
+            child: const Text('Import'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !context.mounted) return;
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Đang import sản phẩm...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await _importService.importProductsFromAssets();
+      
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Import sản phẩm thành công!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _loadStatistics(); // Reload statistics
+      }
+    } catch (e) {
+      print('Error importing: $e');
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi import: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _fixCategoryIds(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Fix Category IDs'),
+        content: const Text(
+          'Chức năng này sẽ sửa tất cả categoryId trong products '
+          'để khớp với Firebase document ID của categories.\n\n'
+          'Sản phẩm có categoryId cũ (cat_1, cat_2...) hoặc sai '
+          'sẽ được cập nhật.\n\n'
+          'Bạn có chắc muốn tiếp tục?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.orange),
+            child: const Text('Fix'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !context.mounted) return;
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Đang fix category IDs...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await _fixService.fixAllProductCategoryIds();
+      
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Fix category IDs thành công!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _loadStatistics(); // Reload statistics
+      }
+    } catch (e) {
+      print('Error fixing: $e');
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi fix: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _resetDatabase(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('⚠️ XÓA VÀ IMPORT LẠI'),
+        content: const Text(
+          'CẢNH BÁO: Chức năng này sẽ:\n\n'
+          '1. XÓA TẤT CẢ products trong Firebase\n'
+          '2. XÓA TẤT CẢ categories trong Firebase\n'
+          '3. Import lại từ JSON với category IDs đúng\n\n'
+          'Dữ liệu cũ sẽ MẤT HOÀN TOÀN!\n\n'
+          'Bạn có CHẮC CHẮN muốn tiếp tục?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('XÓA VÀ IMPORT'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !context.mounted) return;
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Đang xóa và import lại...'),
+                SizedBox(height: 8),
+                Text(
+                  'Có thể mất vài phút',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await _resetService.resetDatabase();
+      
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Reset database thành công! Dữ liệu đã được import lại.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        _loadStatistics(); // Reload statistics
+      }
+    } catch (e) {
+      print('Error resetting: $e');
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi reset: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
+      appBar: AppBar(
+        title: const Text(
+          'Quản trị viên',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: const Color(0xFF1A94FF),
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      drawer: _buildDrawer(context),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Statistics Cards
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatCard(
+                          'Tổng sản phẩm',
+                          _productCount.toString(),
+                          Icons.inventory_2,
+                          Colors.blue,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildStatCard(
+                          'Đơn hàng',
+                          _orderCount.toString(),
+                          Icons.shopping_bag,
+                          Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 12),
+                  
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatCard(
+                          'Người dùng',
+                          _userCount.toString(),
+                          Icons.people,
+                          Colors.green,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildStatCard(
+                          'Danh mục',
+                          _categoryCount.toString(),
+                          Icons.category,
+                          Colors.purple,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Management Sections
+                  const Text(
+                    'Quản lý',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 12),
+                  
+                  _buildManagementCard(
+                    context,
+                    'Quản lý sản phẩm',
+                    'Thêm, sửa, xóa sản phẩm',
+                    Icons.inventory_2_outlined,
+                    Colors.blue,
+                    () => context.push('/admin/products'),
+                  ),
+                  
+                  const SizedBox(height: 12),
+                  
+                  _buildManagementCard(
+                    context,
+                    'Quản lý danh mục',
+                    'Thêm, sửa, xóa danh mục',
+                    Icons.category_outlined,
+                    Colors.purple,
+                    () => context.push('/admin/categories'),
+                  ),
+                  
+                  const SizedBox(height: 12),
+                  
+                  _buildManagementCard(
+                    context,
+                    'Quản lý đơn hàng',
+                    'Xem và cập nhật trạng thái đơn hàng',
+                    Icons.shopping_bag_outlined,
+                    Colors.orange,
+                    () => context.push('/admin/orders'),
+                  ),
+                  
+                  const SizedBox(height: 12),
+                  
+                  _buildManagementCard(
+                    context,
+                    'Quản lý người dùng',
+                    'Xem danh sách người dùng',
+                    Icons.people_outline,
+                    Colors.green,
+                    () => context.push('/admin/users'),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManagementCard(
+    BuildContext context,
+    String title,
+    String subtitle,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: Colors.grey[400],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+  Widget _buildDrawer(BuildContext context) {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          DrawerHeader(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF1A94FF),
+                  Color(0xFF0066CC),
+                ],
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.admin_panel_settings,
+                    size: 32,
+                    color: Color(0xFF1A94FF),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Admin Panel',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'GoMall Management',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.dashboard, color: Color(0xFF1A94FF)),
+            title: const Text('Tổng quan'),
+            onTap: () {
+              Navigator.pop(context);
+              context.go('/admin');
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.inventory_2, color: Colors.blue),
+            title: const Text('Quản lý sản phẩm'),
+            onTap: () {
+              Navigator.pop(context);
+              context.push('/admin/products');
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.category, color: Colors.purple),
+            title: const Text('Quản lý danh mục'),
+            onTap: () {
+              Navigator.pop(context);
+              context.push('/admin/categories');
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.shopping_bag, color: Colors.orange),
+            title: const Text('Quản lý đơn hàng'),
+            onTap: () {
+              Navigator.pop(context);
+              context.push('/admin/orders');
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.people, color: Colors.green),
+            title: const Text('Quản lý người dùng'),
+            onTap: () {
+              Navigator.pop(context);
+              context.push('/admin/users');
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text(
+              'Đăng xuất',
+              style: TextStyle(color: Colors.red),
+            ),
+            onTap: () async {
+              Navigator.pop(context);
+              // Show confirmation dialog
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Xác nhận đăng xuất'),
+                  content: const Text('Bạn có chắc muốn đăng xuất?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Hủy'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text(
+                        'Đăng xuất',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+              
+              if (confirm == true && context.mounted) {
+                await FirebaseAuth.instance.signOut();
+                if (context.mounted) {
+                  context.go('/home');
+                }
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }

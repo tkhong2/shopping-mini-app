@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../shared/widgets/custom_button.dart';
-import '../provider/order_provider.dart';
+import '../../data/services/firebase_order_service.dart';
 
 class OrderHistoryPage extends StatefulWidget {
   const OrderHistoryPage({super.key});
@@ -17,6 +17,7 @@ class OrderHistoryPage extends StatefulWidget {
 class _OrderHistoryPageState extends State<OrderHistoryPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final _orderService = FirebaseOrderService();
 
   final List<String> _tabs = [
     'Tất cả',
@@ -26,18 +27,46 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
     'Đã hủy',
   ];
 
+  // Map status code to Vietnamese text
+  String _mapStatusToText(String status) {
+    switch (status) {
+      case 'pending':
+        return 'Chờ xác nhận';
+      case 'confirmed':
+        return 'Đã xác nhận';
+      case 'shipping':
+        return 'Đang giao';
+      case 'delivered':
+        return 'Hoàn thành';
+      case 'cancelled':
+        return 'Đã hủy';
+      default:
+        return status;
+    }
+  }
+
+  // Map Vietnamese text to status code
+  String _mapTextToStatus(String text) {
+    switch (text) {
+      case 'Chờ xác nhận':
+        return 'pending';
+      case 'Đã xác nhận':
+        return 'confirmed';
+      case 'Đang giao':
+        return 'shipping';
+      case 'Hoàn thành':
+        return 'delivered';
+      case 'Đã hủy':
+        return 'cancelled';
+      default:
+        return text;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
-    
-    // Ensure orders are loaded
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final orderProvider = context.read<OrderProvider>();
-      if (!orderProvider.isLoaded) {
-        orderProvider.loadOrders();
-      }
-    });
   }
 
   @override
@@ -109,27 +138,67 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
     );
   }
 
-  Widget _buildOrderList(String status) {
-    return Consumer<OrderProvider>(
-      builder: (context, orderProvider, child) {
-        final orders = orderProvider.getOrdersByStatus(status);
+  Widget _buildOrderList(String statusText) {
+    // Convert Vietnamese text to status code for Firebase query
+    final statusCode = statusText == 'Tất cả' ? null : _mapTextToStatus(statusText);
+    
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _orderService.streamUserOrders(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-        if (orders.isEmpty) {
-          return _buildEmptyState(status);
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Lỗi: ${snapshot.error}'),
+          );
+        }
+
+        final allOrders = snapshot.data ?? [];
+        
+        // Filter by status if not "Tất cả"
+        final filteredOrders = statusCode == null
+            ? allOrders
+            : allOrders.where((order) => order['status'] == statusCode).toList();
+
+        if (filteredOrders.isEmpty) {
+          return _buildEmptyState(statusText);
         }
 
         return ListView.builder(
           padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-          itemCount: orders.length,
+          itemCount: filteredOrders.length,
           itemBuilder: (context, index) {
-            return _buildOrderCard(orders[index]);
+            return _buildOrderCard(filteredOrders[index]);
           },
         );
       },
     );
   }
 
-  Widget _buildOrderCard(OrderItem order) {
+  Widget _buildOrderCard(Map<String, dynamic> orderData) {
+    final orderId = orderData['orderId'] as String;
+    final status = orderData['status'] as String;
+    final statusText = _mapStatusToText(status);
+    final totalAmount = (orderData['totalAmount'] as num).toDouble();
+    final items = orderData['items'] as List<dynamic>;
+    
+    // Handle both Timestamp and String for createdAt
+    DateTime createdAt;
+    final createdAtData = orderData['createdAt'];
+    if (createdAtData is Timestamp) {
+      createdAt = createdAtData.toDate();
+    } else if (createdAtData is String) {
+      try {
+        createdAt = DateTime.parse(createdAtData);
+      } catch (e) {
+        createdAt = DateTime.now();
+      }
+    } else {
+      createdAt = DateTime.now();
+    }
+    
     return Container(
       margin: const EdgeInsets.only(bottom: AppDimensions.spacingMedium),
       decoration: BoxDecoration(
@@ -162,7 +231,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Đơn hàng #${order.id}',
+                      'Đơn hàng #$orderId',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -170,7 +239,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      DateFormatter.formatDate(order.createdAt),
+                      DateFormatter.formatDate(createdAt),
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -184,15 +253,15 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(order.status).withOpacity(0.1),
+                    color: _getStatusColor(statusText).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    order.status,
+                    statusText,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: _getStatusColor(order.status),
+                      color: _getStatusColor(statusText),
                     ),
                   ),
                 ),
@@ -205,12 +274,12 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
             padding: const EdgeInsets.all(AppDimensions.paddingMedium),
             child: Column(
               children: [
-                ...order.items.take(2).map((item) => _buildOrderItem(item)),
-                if (order.items.length > 2)
+                ...items.take(2).map((item) => _buildOrderItemFromMap(item as Map<String, dynamic>)),
+                if (items.length > 2)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
-                      'và ${order.items.length - 2} sản phẩm khác',
+                      'và ${items.length - 2} sản phẩm khác',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -243,7 +312,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
                       ),
                     ),
                     Text(
-                      PriceFormatter.format(order.totalAmount),
+                      PriceFormatter.format(totalAmount),
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
@@ -254,9 +323,9 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
                 ),
                 Row(
                   children: [
-                    if (order.status == 'Chờ xác nhận')
+                    if (status == 'pending')
                       OutlinedButton(
-                        onPressed: () => _cancelOrder(order.id),
+                        onPressed: () => _cancelOrder(orderId),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.error,
                           side: const BorderSide(color: AppColors.error),
@@ -265,8 +334,8 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
                       ),
                     const SizedBox(width: 8),
                     CustomButton(
-                      text: _getActionText(order.status),
-                      onPressed: () => _handleOrderAction(order),
+                      text: _getActionText(statusText),
+                      onPressed: () => _handleOrderAction(orderId, statusText),
                       height: 36,
                       width: 100,
                     ),
@@ -280,7 +349,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
     );
   }
 
-  Widget _buildOrderItem(OrderItemDetail item) {
+  Widget _buildOrderItemFromMap(Map<String, dynamic> item) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -288,7 +357,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: Image.network(
-              item.imageUrl,
+              item['productImage'] as String? ?? '',
               width: 50,
               height: 50,
               fit: BoxFit.cover,
@@ -308,7 +377,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.name,
+                  item['productName'] as String? ?? '',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -321,14 +390,14 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'x${item.quantity}',
+                      'x${item['quantity']}',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[600],
                       ),
                     ),
                     Text(
-                      PriceFormatter.format(item.price),
+                      PriceFormatter.format((item['price'] as num).toDouble()),
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -413,37 +482,24 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
     }
   }
 
-  void _handleOrderAction(OrderItem order) {
-    // TODO: Handle different order actions
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${_getActionText(order.status)} đơn hàng #${order.id}'),
-      ),
-    );
+  void _handleOrderAction(String orderId, String status) {
+    // Navigate to order detail page
+    context.push('/order/$orderId');
   }
 
-  void _cancelOrder(String orderId) {
-    showDialog(
+  void _cancelOrder(String orderId) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Hủy đơn hàng'),
         content: const Text('Bạn có chắc muốn hủy đơn hàng này?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Không'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              context.read<OrderProvider>().cancelOrder(orderId);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Đã hủy đơn hàng thành công'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
+            onPressed: () => Navigator.of(context).pop(true),
             child: const Text(
               'Hủy đơn',
               style: TextStyle(color: AppColors.error),
@@ -452,5 +508,30 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
         ],
       ),
     );
+
+    if (confirmed == true && mounted) {
+      try {
+        await _orderService.cancelOrder(orderId, 'Khách hàng hủy đơn');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Đã hủy đơn hàng thành công'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Lỗi: $e'),
+              backgroundColor: AppColors.error,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    }
   }
 }

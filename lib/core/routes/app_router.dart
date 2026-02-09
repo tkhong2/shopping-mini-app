@@ -13,6 +13,7 @@ import '../../features/product/presentation/pages/search_page.dart';
 import '../../features/cart/presentation/pages/cart_page.dart';
 import '../../features/order/presentation/pages/checkout_page.dart';
 import '../../features/order/presentation/pages/order_history_page.dart';
+import '../../features/order/presentation/pages/order_detail_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/profile/presentation/pages/edit_profile_page.dart';
 import '../../features/profile/presentation/pages/addresses_page.dart';
@@ -24,6 +25,13 @@ import '../../features/wishlist/presentation/pages/wishlist_page.dart';
 import '../../features/category/presentation/pages/category_page.dart';
 import '../../features/category/presentation/pages/simple_category_page.dart';
 import '../../features/product/presentation/pages/simple_search_page.dart';
+import '../../features/admin/presentation/pages/admin_dashboard_page.dart';
+import '../../features/admin/presentation/pages/admin_products_page.dart';
+import '../../features/admin/presentation/pages/admin_product_form_page.dart';
+import '../../features/admin/presentation/pages/admin_categories_page.dart';
+import '../../features/admin/presentation/pages/admin_category_form_page.dart';
+import '../../features/admin/presentation/pages/admin_orders_page.dart';
+import '../../features/admin/presentation/pages/admin_users_page.dart';
 import '../../shared/widgets/main_wrapper.dart';
 import '../../shared/widgets/splash_page.dart';
 import 'route_names.dart';
@@ -114,6 +122,13 @@ class AppRouter {
         path: RouteNames.orderHistory,
         builder: (context, state) => const OrderHistoryPage(),
       ),
+      GoRoute(
+        path: '/order/:id',
+        builder: (context, state) {
+          final orderId = state.pathParameters['id']!;
+          return OrderDetailPage(orderId: orderId);
+        },
+      ),
       
       // Profile Routes
       GoRoute(
@@ -145,6 +160,58 @@ class AppRouter {
       GoRoute(
         path: RouteNames.settings,
         builder: (context, state) => const SettingsPage(),
+      ),
+      
+      // Admin Routes
+      GoRoute(
+        path: '/admin',
+        builder: (context, state) => const AdminDashboardPage(),
+      ),
+      GoRoute(
+        path: '/admin/products',
+        builder: (context, state) => const AdminProductsPage(),
+      ),
+      GoRoute(
+        path: '/admin/products/add',
+        builder: (context, state) => const AdminProductFormPage(),
+      ),
+      GoRoute(
+        path: '/admin/products/edit/:id',
+        builder: (context, state) {
+          final productId = state.pathParameters['id'];
+          final product = state.extra as Map<String, dynamic>?;
+          return AdminProductFormPage(
+            productId: productId,
+            product: product,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/admin/categories',
+        builder: (context, state) => const AdminCategoriesPage(),
+      ),
+      GoRoute(
+        path: '/admin/categories/add',
+        builder: (context, state) => const AdminCategoryFormPage(),
+      ),
+      GoRoute(
+        path: '/admin/categories/edit/:id',
+        builder: (context, state) {
+          final categoryId = state.pathParameters['id'];
+          final category = state.extra as Map<String, dynamic>?;
+          return AdminCategoryFormPage(
+            categoryId: categoryId,
+            category: category,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/admin/orders',
+        builder: (context, state) => const AdminOrdersPage(),
+      ),
+      GoRoute(
+        path: '/admin/users',
+        builder: (context, state) => const AdminUsersPage(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

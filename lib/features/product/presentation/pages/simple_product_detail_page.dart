@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../../../../core/utils/formatters.dart';
-import '../../../../core/data/mock_products.dart';
+import '../../data/services/firebase_product_service.dart';
 import '../../../cart/domain/entities/cart_item_entity.dart';
 import '../../../cart/presentation/provider/simple_cart_provider.dart';
 
@@ -20,9 +21,11 @@ class SimpleProductDetailPage extends StatefulWidget {
 }
 
 class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
+  final _productService = FirebaseProductService();
   int _currentImageIndex = 0;
   int _quantity = 1;
   Map<String, dynamic>? _product;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -30,20 +33,217 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
     _loadProduct();
   }
 
-  void _loadProduct() {
-    _product = MockProducts.getProductById(widget.productId);
-    if (_product == null) {
-      // If product not found, use first product as fallback
-      _product = MockProducts.products.first;
+  @override
+  void dispose() {
+    // Clear any snackbars when leaving the page
+    try {
+      ScaffoldMessenger.of(context).clearSnackBars();
+    } catch (e) {
+      // Ignore if context is not available
+    }
+    super.dispose();
+  }
+
+  Future<void> _loadProduct() async {
+    setState(() => _isLoading = true);
+    try {
+      final product = await _productService.getProductById(widget.productId);
+      if (mounted) {
+        setState(() {
+          _product = product;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading product: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // Check if user is logged in
+  bool _isUserLoggedIn() {
+    return FirebaseAuth.instance.currentUser != null;
+  }
+
+  // Show login dialog
+  Future<void> _showLoginDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Yêu cầu đăng nhập'),
+        content: const Text(
+          'Bạn cần đăng nhập để thêm sản phẩm vào giỏ hàng hoặc mua hàng.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1A94FF),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Đăng nhập'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      context.push('/login');
+    }
+  }
+
+  // Add to cart with login check
+  Future<void> _addToCart() async {
+    if (!_isUserLoggedIn()) {
+      await _showLoginDialog();
+      return;
+    }
+
+    if (_product == null) return;
+
+    try {
+      final images = _product!['images'] as List<dynamic>? ?? [];
+      final imageUrl = images.isNotEmpty ? images.first as String : '';
+
+      // Use SimpleCartProvider instead of FirebaseCartService
+      final cartItem = CartItemEntity(
+        id: '${widget.productId}_${DateTime.now().millisecondsSinceEpoch}',
+        productId: widget.productId,
+        productName: _product!['name'] as String? ?? '',
+        productImage: imageUrl,
+        price: (_product!['price'] as num?)?.toDouble() ?? 0.0,
+        originalPrice: (_product!['originalPrice'] as num?)?.toDouble(),
+        quantity: _quantity,
+        selectedVariantId: null,
+        selectedVariants: {},
+        maxQuantity: (_product!['stock'] as num?)?.toInt() ?? 999,
+        addedAt: DateTime.now(),
+      );
+
+      if (mounted) {
+        context.read<SimpleCartProvider>().addToCart(cartItem);
+        
+        // Use ScaffoldMessenger with simpler config
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text('Đã thêm $_quantity sản phẩm vào giỏ hàng'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      context.push('/cart');
+                    },
+                    child: const Text(
+                      'XEM',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
+            ),
+          );
+      }
+    } catch (e) {
+      print('Error adding to cart: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  // Buy now with login check
+  Future<void> _buyNow() async {
+    if (!_isUserLoggedIn()) {
+      await _showLoginDialog();
+      return;
+    }
+
+    if (_product == null) return;
+
+    try {
+      final images = _product!['images'] as List<dynamic>? ?? [];
+      final imageUrl = images.isNotEmpty ? images.first as String : '';
+
+      // Add to cart silently (without showing snackbar)
+      final cartItem = CartItemEntity(
+        id: '${widget.productId}_${DateTime.now().millisecondsSinceEpoch}',
+        productId: widget.productId,
+        productName: _product!['name'] as String? ?? '',
+        productImage: imageUrl,
+        price: (_product!['price'] as num?)?.toDouble() ?? 0.0,
+        originalPrice: (_product!['originalPrice'] as num?)?.toDouble(),
+        quantity: _quantity,
+        selectedVariantId: null,
+        selectedVariants: {},
+        maxQuantity: (_product!['stock'] as num?)?.toInt() ?? 999,
+        addedAt: DateTime.now(),
+      );
+
+      if (mounted) {
+        context.read<SimpleCartProvider>().addToCart(cartItem);
+        
+        // Navigate directly to checkout without showing snackbar
+        await Future.delayed(const Duration(milliseconds: 100));
+        context.push('/checkout');
+      }
+    } catch (e) {
+      print('Error in buy now: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Sản phẩm'),
+          backgroundColor: const Color(0xFF1A94FF),
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     if (_product == null) {
       return Scaffold(
         appBar: AppBar(
           title: const Text('Sản phẩm'),
+          backgroundColor: const Color(0xFF1A94FF),
+          foregroundColor: Colors.white,
         ),
         body: const Center(
           child: Text('Không tìm thấy sản phẩm'),
@@ -51,7 +251,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
       );
     }
 
-    final images = _product!['images'] as List<dynamic>;
+    final images = _product!['images'] as List<dynamic>? ?? [];
     
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -460,7 +660,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
               // Add to Cart Button
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () => _addToCart(context),
+                  onPressed: _addToCart,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: const Color(0xFF1A94FF),
@@ -492,7 +692,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
               // Buy Now Button
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () => _buyNow(context),
+                  onPressed: _buyNow,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1A94FF),
                     foregroundColor: Colors.white,
@@ -515,79 +715,5 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
         ),
       ),
     );
-  }
-
-  void _addToCart(BuildContext context) {
-    final cartItem = CartItemEntity(
-      id: '${_product!['id']}_${DateTime.now().millisecondsSinceEpoch}',
-      productId: _product!['id'] as String,
-      productName: _product!['name'] as String,
-      productImage: (_product!['images'] as List<dynamic>).first as String,
-      price: _product!['price'] as double,
-      originalPrice: _product!['originalPrice'] as double,
-      quantity: _quantity,
-      selectedVariantId: null,
-      selectedVariants: {},
-      maxQuantity: _product!['stock'] as int,
-      addedAt: DateTime.now(),
-    );
-
-    context.read<SimpleCartProvider>().addToCart(cartItem);
-
-    // Hide any existing snackbar
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    
-    // Show new snackbar
-    final snackBar = ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Đã thêm $_quantity sản phẩm vào giỏ hàng'),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
-        action: SnackBarAction(
-          label: 'Xem',
-          textColor: Colors.white,
-          onPressed: () {
-            context.push('/cart');
-          },
-        ),
-        duration: const Duration(seconds: 3),
-      ),
-    );
-    
-    // Force hide after 3 seconds (fallback for web)
-    Timer(const Duration(seconds: 3), () {
-      snackBar.close();
-    });
-  }
-
-  void _buyNow(BuildContext context) {
-    final cartItem = CartItemEntity(
-      id: '${_product!['id']}_${DateTime.now().millisecondsSinceEpoch}',
-      productId: _product!['id'] as String,
-      productName: _product!['name'] as String,
-      productImage: (_product!['images'] as List<dynamic>).first as String,
-      price: _product!['price'] as double,
-      originalPrice: _product!['originalPrice'] as double,
-      quantity: _quantity,
-      selectedVariantId: null,
-      selectedVariants: {},
-      maxQuantity: _product!['stock'] as int,
-      addedAt: DateTime.now(),
-    );
-
-    // Add to cart and select it
-    final cartProvider = context.read<SimpleCartProvider>();
-    cartProvider.addToCart(cartItem);
-    
-    // Select only this item for checkout
-    cartProvider.selectAllItems(false);
-    final addedItem = cartProvider.items.firstWhere(
-      (item) => item.productId == cartItem.productId,
-    );
-    cartProvider.toggleItemSelection(addedItem.id);
-    
-    // Navigate directly to checkout
-    context.push('/checkout');
   }
 }

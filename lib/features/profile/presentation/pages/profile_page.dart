@@ -6,8 +6,25 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/route_names.dart';
 import '../../../order/presentation/provider/order_provider.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  @override
+  void initState() {
+    super.initState();
+    // Load orders when page is opened
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        context.read<OrderProvider>().loadOrders();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -260,8 +277,8 @@ class ProfilePage extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _buildOrderStatusItem(
-                    Icons.payment,
-                    'Chờ thanh\ntoán',
+                    Icons.schedule,
+                    'Chờ xác\nnhận',
                     pendingCount,
                     () {
                       if (isLoggedIn) {
@@ -285,7 +302,7 @@ class ProfilePage extends StatelessWidget {
                   ),
                   _buildOrderStatusItem(
                     Icons.local_shipping_outlined,
-                    'Đang vận\nchuyển',
+                    'Đang giao',
                     shippingCount,
                     () {
                       if (isLoggedIn) {
@@ -297,7 +314,7 @@ class ProfilePage extends StatelessWidget {
                   ),
                   _buildOrderStatusItem(
                     Icons.check_circle_outline,
-                    'Đã giao',
+                    'Hoàn thành',
                     completedCount,
                     () {
                       if (isLoggedIn) {
@@ -308,8 +325,8 @@ class ProfilePage extends StatelessWidget {
                     },
                   ),
                   _buildOrderStatusItem(
-                    Icons.replay,
-                    'Đổi trả',
+                    Icons.cancel_outlined,
+                    'Đã hủy',
                     cancelledCount,
                     () {
                       if (isLoggedIn) {
@@ -415,6 +432,9 @@ class ProfilePage extends StatelessWidget {
   }
 
   Widget _buildSettingsMenu(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final isAdmin = user?.email == 'admin@gomall.com'; // Simple admin check
+    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -423,6 +443,16 @@ class ProfilePage extends StatelessWidget {
       ),
       child: Column(
         children: [
+          // Admin access (only for admin users)
+          if (isAdmin) ...[
+            _buildMenuItem(
+              icon: Icons.admin_panel_settings,
+              title: 'Quản trị viên',
+              onTap: () => context.push('/admin'),
+              iconColor: Colors.red,
+            ),
+            Divider(height: 1, color: Colors.grey[200]),
+          ],
           _buildMenuItem(
             icon: Icons.help_outline,
             title: 'Trung tâm trợ giúp',
@@ -449,14 +479,16 @@ class ProfilePage extends StatelessWidget {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    Color? iconColor,
   }) {
     return ListTile(
-      leading: Icon(icon, color: const Color(0xFF1A94FF)),
+      leading: Icon(icon, color: iconColor ?? const Color(0xFF1A94FF)),
       title: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w500,
+          color: iconColor,
         ),
       ),
       trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),

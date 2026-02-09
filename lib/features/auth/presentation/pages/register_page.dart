@@ -57,7 +57,13 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
             );
           } else if (state is AuthAuthenticated) {
-            context.go(RouteNames.home);
+            // Check if user is admin
+            final email = _emailController.text.trim();
+            if (email == 'admin@gomall.com') {
+              context.go('/admin');
+            } else {
+              context.go(RouteNames.home);
+            }
           }
         },
         child: SafeArea(

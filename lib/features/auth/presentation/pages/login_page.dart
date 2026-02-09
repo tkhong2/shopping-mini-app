@@ -51,7 +51,13 @@ class _LoginPageState extends State<LoginPage> {
               ),
             );
           } else if (state is AuthAuthenticated) {
-            context.go(RouteNames.home);
+            // Check if user is admin
+            final email = _emailController.text.trim();
+            if (email == 'admin@gomall.com') {
+              context.go('/admin');
+            } else {
+              context.go(RouteNames.home);
+            }
           }
         },
         child: SafeArea(
@@ -333,17 +339,10 @@ class _LoginPageState extends State<LoginPage> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: Image.network(
-                            'https://www.google.com/favicon.ico',
-                            width: 24,
-                            height: 24,
-                            errorBuilder: (context, error, stackTrace) {
-                              return const Icon(
-                                Icons.g_mobiledata,
-                                color: Color(0xFF4285F4),
-                                size: 28,
-                              );
-                            },
+                          child: const Icon(
+                            Icons.g_mobiledata,
+                            color: Color(0xFF4285F4),
+                            size: 28,
                           ),
                         ),
                       ),
