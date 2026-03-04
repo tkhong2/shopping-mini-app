@@ -120,7 +120,10 @@ class AppRouter {
       ),
       GoRoute(
         path: RouteNames.orderHistory,
-        builder: (context, state) => const OrderHistoryPage(),
+        builder: (context, state) {
+          final tabIndex = int.tryParse(state.uri.queryParameters['tab'] ?? '0') ?? 0;
+          return OrderHistoryPage(initialTabIndex: tabIndex);
+        },
       ),
       GoRoute(
         path: '/order/:id',

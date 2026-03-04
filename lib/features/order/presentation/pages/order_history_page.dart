@@ -8,7 +8,12 @@ import '../../../../shared/widgets/custom_button.dart';
 import '../../data/services/firebase_order_service.dart';
 
 class OrderHistoryPage extends StatefulWidget {
-  const OrderHistoryPage({super.key});
+  final int initialTabIndex;
+  
+  const OrderHistoryPage({
+    super.key,
+    this.initialTabIndex = 0,
+  });
 
   @override
   State<OrderHistoryPage> createState() => _OrderHistoryPageState();
@@ -66,7 +71,11 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _tabs.length, vsync: this);
+    _tabController = TabController(
+      length: _tabs.length,
+      vsync: this,
+      initialIndex: widget.initialTabIndex,
+    );
   }
 
   @override
@@ -151,27 +160,57 @@ class _OrderHistoryPageState extends State<OrderHistoryPage>
 
         if (snapshot.hasError) {
           return Center(
-            child: Text('Lỗi: ${snapshot.error}'),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                const SizedBox(height: 16),
+                Text(
+                  'Lỗi: ${snapshot.error}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
           );
         }
 
         final allOrders = snapshot.data ?? [];
         
+        // Debug: Print all orders and their status
+        debugPrint('📦 Total orders: ${allOrders.length}');
+        debugPrint('🔍 Filtering for tab: $statusText (code: $statusCode)');
+        for (var order in allOrders) {
+          debugPrint('  Order ${order['orderId']}: status = ${order['status']}');
+        }
+        
         // Filter by status if not "Tất cả"
         final filteredOrders = statusCode == null
             ? allOrders
-            : allOrders.where((order) => order['status'] == statusCode).toList();
+            : allOrders.where((order) {
+                final orderStatus = order['status'] as String?;
+                debugPrint('  Comparing: $orderStatus == $statusCode ? ${orderStatus == statusCode}');
+                return orderStatus == statusCode;
+              }).toList();
+        
+        debugPrint('✅ Filtered orders: ${filteredOrders.length}');
 
         if (filteredOrders.isEmpty) {
           return _buildEmptyState(statusText);
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-          itemCount: filteredOrders.length,
-          itemBuilder: (context, index) {
-            return _buildOrderCard(filteredOrders[index]);
+        return RefreshIndicator(
+          onRefresh: () async {
+            // Force refresh by rebuilding
+            setState(() {});
           },
+          child: ListView.builder(
+            padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+            itemCount: filteredOrders.length,
+            itemBuilder: (context, index) {
+              return _buildOrderCard(filteredOrders[index]);
+            },
+          ),
         );
       },
     );

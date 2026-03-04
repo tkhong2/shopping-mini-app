@@ -277,12 +277,12 @@ class _ProfilePageState extends State<ProfilePage> {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _buildOrderStatusItem(
-                    Icons.schedule,
+                    Icons.schedule_outlined,
                     'Chờ xác\nnhận',
                     pendingCount,
                     () {
                       if (isLoggedIn) {
-                        context.push(RouteNames.orderHistory);
+                        context.push('${RouteNames.orderHistory}?tab=1');
                       } else {
                         context.go(RouteNames.login);
                       }
@@ -294,7 +294,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     processingCount,
                     () {
                       if (isLoggedIn) {
-                        context.push(RouteNames.orderHistory);
+                        context.push('${RouteNames.orderHistory}?tab=0');
                       } else {
                         context.go(RouteNames.login);
                       }
@@ -306,7 +306,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     shippingCount,
                     () {
                       if (isLoggedIn) {
-                        context.push(RouteNames.orderHistory);
+                        context.push('${RouteNames.orderHistory}?tab=2');
                       } else {
                         context.go(RouteNames.login);
                       }
@@ -318,7 +318,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     completedCount,
                     () {
                       if (isLoggedIn) {
-                        context.push(RouteNames.orderHistory);
+                        context.push('${RouteNames.orderHistory}?tab=3');
                       } else {
                         context.go(RouteNames.login);
                       }
@@ -330,7 +330,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     cancelledCount,
                     () {
                       if (isLoggedIn) {
-                        context.push(RouteNames.orderHistory);
+                        context.push('${RouteNames.orderHistory}?tab=4');
                       } else {
                         context.go(RouteNames.login);
                       }

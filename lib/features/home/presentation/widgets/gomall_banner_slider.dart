@@ -14,13 +14,13 @@ class _GoMallBannerSliderState extends State<GoMallBannerSlider> {
   final List<Map<String, String>> _banners = [
     {
       'image': 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800&h=400&fit=crop',
-      'title': 'CAO LIXI',
-      'subtitle': 'Cào ngay trúng vàng',
+      'title': 'MINIGAME',
+      'subtitle': 'Chơi ngay trúng quà',
       'badge': 'HƠN 45.000 phần quà',
     },
     {
       'image': 'https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=800&h=400&fit=crop',
-      'title': 'SIÊU SALE TẾT',
+      'title': 'SIÊU SALE',
       'subtitle': 'Giảm đến 50%',
       'badge': 'DEAL HOT NHẤT',
     },

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class GoMallCategoryGrid extends StatelessWidget {
   const GoMallCategoryGrid({super.key});
@@ -13,7 +14,7 @@ class GoMallCategoryGrid extends StatelessWidget {
           Row(
             children: [
               _buildCategoryItem(
-                'Chơi Game\nCào LIXI',
+                'Chơi Game\nNhận Quà',
                 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=100&h=100&fit=crop',
                 Icons.gamepad,
                 Colors.orange,
@@ -51,31 +52,31 @@ class GoMallCategoryGrid extends StatelessWidget {
           Row(
             children: [
               _buildCategoryItem(
-                '2/2 Săm Tết\nVui',
+                'Săn Deal\nHấp Dẫn',
                 'https://images.unsplash.com/photo-1612198188060-c7c2a3b66eae?w=100&h=100&fit=crop',
                 Icons.celebration,
                 Colors.red,
               ),
               _buildCategoryItem(
-                'Quà Tặng Tết',
+                'Quà Tặng\nĐặc Biệt',
                 'https://images.unsplash.com/photo-1513885535751-8b9238bd345a?w=100&h=100&fit=crop',
                 Icons.card_giftcard,
                 Colors.orange,
               ),
               _buildCategoryItem(
-                'Tết Xinh Hết\nNấc',
+                'Làm Đẹp\nThời Thượng',
                 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=100&h=100&fit=crop',
                 Icons.face_retouching_natural,
                 Colors.pink,
               ),
               _buildCategoryItem(
-                'Tết Tri Thức',
+                'Sách & Văn\nPhòng Phẩm',
                 'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=100&h=100&fit=crop',
                 Icons.menu_book,
                 Colors.brown,
               ),
               _buildCategoryItem(
-                'Xả Kho\nNgày Tết',
+                'Xả Kho\nGiá Sốc',
                 'https://images.unsplash.com/photo-1607082350899-7e105aa886ae?w=100&h=100&fit=crop',
                 Icons.local_offer,
                 Colors.blueGrey,
@@ -91,7 +92,8 @@ class GoMallCategoryGrid extends StatelessWidget {
     return Expanded(
       child: GestureDetector(
         onTap: () {
-          // Handle category tap
+          // Navigate to category page - for now just show a message
+          // In a real app, you would navigate to a specific category
         },
         child: Column(
           mainAxisSize: MainAxisSize.min,
