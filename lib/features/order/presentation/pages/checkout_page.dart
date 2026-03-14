@@ -82,7 +82,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   ),
                 ),
               ),
-              _buildBottomBar(cartProvider),
+              Consumer<AddressProvider>(
+                builder: (context, addressProvider, _) => _buildBottomBar(cartProvider, addressProvider),
+              ),
             ],
           );
         },
@@ -134,9 +136,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  Widget _buildBottomBar(SimpleCartProvider cartProvider) {
+  Widget _buildBottomBar(SimpleCartProvider cartProvider, AddressProvider addressProvider) {
     final deliveryFee = _calculateDeliveryFee(cartProvider.totalPrice);
     final totalAmount = cartProvider.totalPrice + deliveryFee;
+    final hasAddress = addressProvider.defaultAddress != null;
 
     return Container(
       decoration: BoxDecoration(
@@ -182,7 +185,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 width: 140,
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: _isProcessing ? null : () => _processOrder(cartProvider),
+                  onPressed: _isProcessing || !hasAddress ? null : () => _processOrder(cartProvider),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,

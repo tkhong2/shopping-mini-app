@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routes/route_names.dart';
 import '../../../order/presentation/provider/order_provider.dart';
+import '../../../order/data/services/firebase_order_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -226,14 +227,16 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildOrderStatusSection(BuildContext context, bool isLoggedIn) {
-    return Consumer<OrderProvider>(
-      builder: (context, orderProvider, child) {
-        // Count orders by status
-        final pendingCount = orderProvider.orders.where((o) => o.status == 'Chờ xác nhận').length;
-        final processingCount = orderProvider.orders.where((o) => o.status == 'Đang xử lý').length;
-        final shippingCount = orderProvider.orders.where((o) => o.status == 'Đang giao').length;
-        final completedCount = orderProvider.orders.where((o) => o.status == 'Hoàn thành').length;
-        final cancelledCount = orderProvider.orders.where((o) => o.status == 'Đã hủy').length;
+    final orderService = FirebaseOrderService();
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: isLoggedIn ? orderService.streamUserOrders() : Stream.value([]),
+      builder: (context, snapshot) {
+        final orders = snapshot.data ?? [];
+        final pendingCount = orders.where((o) => o['status'] == 'pending').length;
+        final processingCount = orders.where((o) => o['status'] == 'confirmed').length;
+        final shippingCount = orders.where((o) => o['status'] == 'shipping').length;
+        final completedCount = orders.where((o) => o['status'] == 'delivered').length;
+        final cancelledCount = orders.where((o) => o['status'] == 'cancelled').length;
 
         return Container(
           margin: const EdgeInsets.all(16),

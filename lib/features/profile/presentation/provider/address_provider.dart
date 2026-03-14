@@ -132,18 +132,8 @@ class AddressProvider extends ChangeNotifier {
         
         debugPrint('Loaded ${_addresses.length} addresses after cleanup');
       } else {
-        // Add default address if none exist
-        debugPrint('No addresses found, creating default');
-        _addresses.add(
-          AddressItem(
-            id: '1',
-            name: 'Nguyễn Văn A',
-            phone: '0123456789',
-            address: '123 Đường ABC, Phường XYZ, Quận 1, TP.HCM',
-            isDefault: true,
-          ),
-        );
-        await _saveAddresses();
+        // No addresses found, start empty
+        debugPrint('No addresses found, starting empty');
       }
 
       _isLoaded = true;

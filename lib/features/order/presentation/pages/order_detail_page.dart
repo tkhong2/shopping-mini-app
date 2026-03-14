@@ -587,9 +587,11 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
             const SnackBar(
               content: Text('Đã hủy đơn hàng thành công'),
               backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
             ),
           );
-          _loadOrderDetail(); // Reload to update status
+          // Pop back to order list after cancel
+          Navigator.of(context).pop();
         }
       } catch (e) {
         if (mounted) {
