@@ -351,6 +351,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.of(context).pop();
+                          context.go('/home');
                           context.push('/orders');
                         },
                         style: ElevatedButton.styleFrom(
